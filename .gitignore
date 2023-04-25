@@ -1,4 +1,4 @@
 *.Identifier
 main
 result.txt
-a.out
+*.out
