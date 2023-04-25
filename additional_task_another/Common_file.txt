@@ -1,0 +1,10 @@
+Hi, My rank is 9!
+Hello! My rank is 8!
+Hello! My rank is 7!
+Hello! My rank is 6!
+Hello! My rank is 5!
+Hello! My rank is 4!
+Hello! My rank is 3!
+Hello! My rank is 2!
+Hello! My rank is 1!
+Hello! My rank is 0!
