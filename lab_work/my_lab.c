@@ -8,6 +8,14 @@
         #define M_PI 3.14159265358979
 #endif
 
+void* my_calloc(int n_elem, int size_of_elem) {
+        void* ptr = calloc(n_elem, size_of_elem);
+        if (ptr != NULL)
+                return ptr;
+        printf("calloc_error\n");
+        return (void*)-1;
+}
+
 int main(int argc, char* argv[]) {
         MPI_Init(&argc, &argv);
         int my_rank, commsize;
@@ -21,7 +29,7 @@ int main(int argc, char* argv[]) {
 
         // Initialize bounds of the task
         double T = 1.0, X = 1.0;
-        double tau = 5e-5, h = 5e-3;
+        double tau = 1e-4, h = 1e-2;
 
         // Total number of steps
         int T_steps = (int) T/tau;
@@ -29,13 +37,13 @@ int main(int argc, char* argv[]) {
 
         // Initialize boundary conditions of the task and its parameter
         double a = 1.0;
-        double* timeBoundary = (double*) calloc(T_steps, sizeof(double));
-        double* distBoundary = (double*) calloc(X_steps, sizeof(double));
+        double* timeBoundary = (double*) my_calloc(T_steps, sizeof(double));
+        double* distBoundary = (double*) my_calloc(X_steps, sizeof(double));
         int i;
         for (i = 0; i < T_steps; i++)
-                timeBoundary[i] = -sin(2. * M_PI * tau * i);
+                timeBoundary[i] = -10.0 * sin(2. * M_PI * tau * i);
         for (i = 0; i < X_steps; i++)
-                distBoundary[i] = sin(2. * M_PI * h * i);
+                distBoundary[i] = i * h;
         
         // Initialize Courant number
         double courant = a * tau / h;
@@ -46,9 +54,9 @@ int main(int argc, char* argv[]) {
         printf("Start: %d.\tLength: %d.\n", startOfSegment, segmentSize);
 
         // Allocate memory for solution
-        double** u = (double**) calloc(T_steps, sizeof(double*));
+        double** u = (double**) my_calloc(T_steps, sizeof(double*));
         for (i = 0; i < T_steps; i++)
-                u[i] = (double*) calloc(segmentSize, sizeof(double));
+                u[i] = (double*) my_calloc(segmentSize, sizeof(double));
 
         // First time layer
         for (i = 0; i < segmentSize; i++)
@@ -96,25 +104,28 @@ int main(int argc, char* argv[]) {
                 endTime = MPI_Wtime();
                 printf("Time: %lg.\n", endTime - startTime);
         }
-        // if (my_rank != 0)
-        //         MPI_Send(u, T_steps * segmentSize, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-        // if (my_rank == 0) {
+        if (my_rank != 0)
+                for (int i = 0; i < T_steps; i++)
+                        MPI_Send(u[i], segmentSize, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+        if (my_rank == 0) {
+                printf("want to calloc %d\n", X_steps * T_steps * sizeof(double) / 1024 / 1024);
+                double* solution = my_calloc (X_steps * T_steps, sizeof(double));
+                        
                 
-        //         double* solution = calloc (X_steps * T_steps, sizeof(double));
-        //         printf("calloc success\n");
-        //         memcpy(solution, u, T_steps * segmentSize);
-        //         for (int i = 1; i < commsize; i++){
-        //                 printf("recv\n");
-        //                 MPI_Recv(&(solution[i * segmentSize]), segmentSize * T_steps, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        //         }
-        //         for (int j = 0; j < X_steps; j++) {
-        //                 for (int i = 0; i < T_steps; i++)
-        //                         printf ("%lf ", solution[j*T_steps + i]);
-        //                 printf("\n");
-        //         }
+                for (int i = 0; i < T_steps; i++){
+                        //printf("recv\n");
+                        memcpy(&(solution[i * X_steps]), u[i], segmentSize);
+                        for (int j = 1; j < commsize; j++)
+                                MPI_Recv(&(solution[i * X_steps + j * segmentSize]), segmentSize, MPI_DOUBLE, j, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                }       
+                for (int j = 0; j < T_steps; j++) {
+                        for (int i = 0; i < X_steps; i++)
+                                printf ("%10lf ", solution[j*X_steps + i]);
+                        printf("\n");
+                }
                 
-        //         free (solution);
-        // }
+                free (solution);
+        }
 
 
         // Let's estimate accuracy of our solution
